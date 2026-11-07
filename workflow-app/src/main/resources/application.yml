@@ -3,6 +3,11 @@ spring:
     name: telemed-ia-workflow
 server:
   port: ${PORT:8080}
+  error:
+    # Errors answer with the shared envelope; nothing internal reaches the client.
+    include-message: never
+    include-stacktrace: never
+    include-exception: false
 logging:
   structured:
     format:
