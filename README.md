@@ -41,11 +41,13 @@ Requires Java 21 and Maven 3.9.
 
 ```bash
 mvn verify                                  # build and run every test
-mvn -pl workflow-app -am spring-boot:run    # start on PORT (default 8080)
+JWT_PUBLIC_KEY="$(cat identity-public.pem)" \n  mvn -pl workflow-app -am spring-boot:run  # start on PORT (default 8080)
 curl http://localhost:8080/health           # {"status":"UP"}
 ```
 
 Configuration comes from environment variables; `.env.example` lists the names, never the values.
+The service does not start without `JWT_PUBLIC_KEY`, the identity service's RSA public key: every
+route but `/health` requires an RS256 access token signed by identity.
 
 ## Branching
 
