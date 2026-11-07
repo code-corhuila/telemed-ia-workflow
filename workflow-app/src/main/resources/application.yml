@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: telemed-ia-workflow
+server:
+  port: ${PORT:8080}
+logging:
+  structured:
+    format:
+      console: ecs                          # one JSON object per line
