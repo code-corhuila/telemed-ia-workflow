@@ -1,13 +1,17 @@
 package co.edu.corhuila.telemedia.workflow.application.usecase;
 
+import co.edu.corhuila.telemedia.workflow.application.port.in.GetSaga;
+import co.edu.corhuila.telemedia.workflow.application.port.in.IdempotencyKeyReusedException;
 import co.edu.corhuila.telemedia.workflow.application.port.in.ProfessionalOnboardingCommand;
 import co.edu.corhuila.telemedia.workflow.application.port.in.StartProfessionalOnboarding;
+import co.edu.corhuila.telemedia.workflow.application.port.out.DuplicateSagaException;
 import co.edu.corhuila.telemedia.workflow.application.port.out.IdGenerator;
 import co.edu.corhuila.telemedia.workflow.application.port.out.IdentityAccounts;
 import co.edu.corhuila.telemedia.workflow.application.port.out.NewProfessionalAccount;
 import co.edu.corhuila.telemedia.workflow.application.port.out.ProfessionalProfiles;
 import co.edu.corhuila.telemedia.workflow.application.port.out.SagaStore;
 import co.edu.corhuila.telemedia.workflow.domain.saga.SagaInstance;
+import co.edu.corhuila.telemedia.workflow.domain.saga.UnknownSagaException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -15,6 +19,7 @@ import java.time.Clock;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -28,9 +33,10 @@ import java.util.function.Consumer;
  * </ol>
  *
  * The state is stored after every step and every compensation. A failed step undoes the completed
- * ones in reverse order; a failed compensation stops there and leaves the saga FAILED.
+ * ones in reverse order; a failed compensation stops there and leaves the saga FAILED. Repeating the
+ * Idempotency-Key with the same request returns the saga it started and runs no step again.
  */
-public class RunProfessionalOnboardingSaga implements StartProfessionalOnboarding {
+public class RunProfessionalOnboardingSaga implements StartProfessionalOnboarding, GetSaga {
 
     public static final String TYPE = "professional-onboarding";
     static final String ACCOUNT_ID = "accountId";
@@ -52,12 +58,33 @@ public class RunProfessionalOnboardingSaga implements StartProfessionalOnboardin
     }
 
     @Override
-    public SagaInstance start(ProfessionalOnboardingCommand command, String idempotencyKey) {
-        SagaInstance saga = SagaInstance.start(ids.newId(), TYPE, idempotencyKey, requestHash(command),
-                clock.instant());
-        store.insert(saga);
+    public Started start(ProfessionalOnboardingCommand command, String idempotencyKey) {
+        String requestHash = requestHash(command);
+        Optional<SagaInstance> previous = store.findByIdempotencyKey(idempotencyKey);
+        if (previous.isPresent()) {
+            return replay(previous.get(), requestHash);
+        }
+        SagaInstance saga = SagaInstance.start(ids.newId(), TYPE, idempotencyKey, requestHash, clock.instant());
+        try {
+            store.insert(saga);
+        } catch (DuplicateSagaException twin) {
+            // A concurrent request with the same key stored its saga after the lookup: this is its retry.
+            return replay(store.findByIdempotencyKey(idempotencyKey).orElseThrow(() -> twin), requestHash);
+        }
         run(saga, steps(command));
-        return saga;
+        return new Started(saga, true);
+    }
+
+    @Override
+    public SagaInstance get(UUID id) {
+        return store.findById(id).orElseThrow(() -> new UnknownSagaException(id));
+    }
+
+    private static Started replay(SagaInstance previous, String requestHash) {
+        if (!previous.requestHash().equals(requestHash)) {
+            throw new IdempotencyKeyReusedException();
+        }
+        return new Started(previous, false);
     }
 
     /** Each step declares its compensation next to it (Anexo E, rule 1). */
