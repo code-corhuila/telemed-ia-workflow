@@ -8,6 +8,9 @@ server:
     include-message: never
     include-stacktrace: never
     include-exception: false
+workflow:
+  jwt:
+    public-key: ${JWT_PUBLIC_KEY:}            # identity's RSA PUBLIC KEY PEM; required at startup
 logging:
   structured:
     format:
