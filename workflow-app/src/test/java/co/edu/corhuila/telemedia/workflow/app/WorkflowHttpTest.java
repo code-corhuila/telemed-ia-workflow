@@ -29,6 +29,7 @@ class WorkflowHttpTest {
     @DynamicPropertySource
     static void jwtPublicKey(DynamicPropertyRegistry registry) {
         registry.add("JWT_PUBLIC_KEY", TestTokens::publicKeyPem);
+        registry.add("WORKFLOW_CLIENT_SECRET", () -> "test-secret");
     }
 
     @Test
