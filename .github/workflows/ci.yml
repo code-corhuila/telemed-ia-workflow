@@ -26,3 +26,18 @@ jobs:
 
       - name: Build and test
         run: mvn -B verify
+
+  db-tests:
+    name: Workflow schema tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # A disposable PostgreSQL 16 and Liquibase 4.31 in Docker, with the roles
+      # that telemed-ia-infra-postgres creates: changeset count, update,
+      # idempotent re-update, full rollback, rebuild and db/tests/sql (ADR-028).
+      - name: Run the db/ tests
+        run: bash db/tests/run-db-tests.sh
