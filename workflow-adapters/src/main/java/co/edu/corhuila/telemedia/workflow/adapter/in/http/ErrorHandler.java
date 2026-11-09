@@ -1,5 +1,7 @@
 package co.edu.corhuila.telemedia.workflow.adapter.in.http;
 
+import co.edu.corhuila.telemedia.workflow.application.port.in.IdempotencyKeyReusedException;
+import co.edu.corhuila.telemedia.workflow.domain.saga.UnknownSagaException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,6 +24,27 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 public class ErrorHandler extends ResponseEntityExceptionHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(ErrorHandler.class);
+
+    @ExceptionHandler(InvalidRequestException.class)
+    ResponseEntity<ApiError> invalid(InvalidRequestException failure, HttpServletRequest request) {
+        return envelope(400, ApiError.invalid(failure.details(), CorrelationFilter.current(request)));
+    }
+
+    @ExceptionHandler(ForbiddenException.class)
+    ResponseEntity<ApiError> forbidden(HttpServletRequest request) {
+        return envelope(403, ApiError.forStatus(403, CorrelationFilter.current(request)));
+    }
+
+    @ExceptionHandler(UnknownSagaException.class)
+    ResponseEntity<ApiError> unknownSaga(HttpServletRequest request) {
+        return envelope(404, ApiError.forStatus(404, CorrelationFilter.current(request)));
+    }
+
+    @ExceptionHandler(IdempotencyKeyReusedException.class)
+    ResponseEntity<ApiError> keyReused(HttpServletRequest request) {
+        return envelope(422, ApiError.of(ApiError.BUSINESS_RULE_VIOLATION,
+                "the Idempotency-Key was already used for a different request", CorrelationFilter.current(request)));
+    }
 
     @ExceptionHandler(Exception.class)
     ResponseEntity<ApiError> unexpected(Exception failure, HttpServletRequest request) {
