@@ -17,7 +17,7 @@ business process has to write in more than one domain, this service runs it as a
 
 It owns no business data: domain state and rules stay in each domain's `-api`.
 
-### Planned saga: professional onboarding
+### Saga: professional onboarding
 
 | Step | Participant | Action | Compensation |
 |---|---|---|---|
@@ -26,6 +26,17 @@ It owns no business data: domain state and rules stay in each domain's `-api`.
 | 3 | identity-and-access | activate the account | — (last step) |
 
 The account can only sign in once every step succeeded.
+
+### Endpoints (WF-004)
+
+| Route | Caller | Answers |
+|---|---|---|
+| `POST /api/v1/sagas/professional-onboarding` with `Idempotency-Key` and `{fullName, email, identityDocument, password, licenseNumber, yearsExperience}` | `ADMIN` | `201` + `Location` with the saga; `200` when the key is repeated with the same request; `422` when the key was used for another request; `400` for a missing key or invalid fields; `403` for any other role |
+| `GET /api/v1/sagas/{id}` | `ADMIN` | `200` with the saga; `404` unknown; `400` when the id is not a UUID |
+
+The saga runs inside the request, so the answer carries its final `status` (`COMPLETED`,
+`COMPENSATED` or `FAILED`) and, when a step failed, `failedStep`. A compensated saga is still a
+`201`. The password and the failure detail are never returned.
 
 ## Structure
 
