@@ -67,6 +67,18 @@ PostgreSQL (ADR-028), connected as `workflow_app`. The schema lives in [`db/`](d
 migrated by its own runner, never by the service. `mvn verify` needs Docker for the store tests
 (Testcontainers).
 
+### Run in the platform
+
+`deploy/compose.yml` runs the service as `workflow-api:8080` on the external `platform` network
+(only `expose`, never published: the gateway routes `/api/v1/sagas` to it). It reads the env file of
+`telemed-ia-infra-postgres` (`JWT_PUBLIC_KEY`, `WORKFLOW_APP_PASSWORD`) plus
+`WORKFLOW_CLIENT_SECRET`, whose bcrypt hash must be in identity's `SERVICE_CLIENTS`:
+
+```bash
+# after infra-postgres is up and workflow-db-migrate ran
+docker compose -f deploy/compose.yml --env-file ../telemed-ia-infra-postgres/env/dev.env up -d --build
+```
+
 ## Branching
 
 Three permanent branches. **None of them accepts a direct commit**: you enter through a child
