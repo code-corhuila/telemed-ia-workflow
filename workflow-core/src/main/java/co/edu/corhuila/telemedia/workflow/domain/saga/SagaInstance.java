@@ -46,6 +46,44 @@ public final class SagaInstance {
         return new SagaInstance(id, type, idempotencyKey, requestHash, now);
     }
 
+    /** Everything a store keeps of a saga, and needs to rebuild it. */
+    public record Snapshot(UUID id, String type, String idempotencyKey, String requestHash, SagaStatus status,
+                           List<String> completedSteps, List<String> compensatedSteps, Map<String, String> data,
+                           String failedStep, String failureDetail, String failedCompensation,
+                           String compensationFailureDetail, Instant createdAt, Instant updatedAt) {
+        public Snapshot {
+            Objects.requireNonNull(status, "status");
+            Objects.requireNonNull(updatedAt, "updatedAt");
+            completedSteps = List.copyOf(completedSteps);
+            compensatedSteps = List.copyOf(compensatedSteps);
+            data = Map.copyOf(data);
+        }
+    }
+
+    public Snapshot snapshot() {
+        return new Snapshot(id, type, idempotencyKey, requestHash, status, completedSteps, compensatedSteps, data,
+                failedStep, failureDetail, failedCompensation, compensationFailureDetail, createdAt, updatedAt);
+    }
+
+    /** Rebuilds a stored saga, which goes on from the state it was stored in. */
+    public static SagaInstance restore(Snapshot stored) {
+        if (!stored.completedSteps().containsAll(stored.compensatedSteps())) {
+            throw new IllegalArgumentException("Saga " + stored.id() + " undid steps it never did");
+        }
+        SagaInstance saga = new SagaInstance(stored.id(), stored.type(), stored.idempotencyKey(),
+                stored.requestHash(), stored.createdAt());
+        saga.completedSteps.addAll(stored.completedSteps());
+        saga.compensatedSteps.addAll(stored.compensatedSteps());
+        saga.data.putAll(stored.data());
+        saga.status = stored.status();
+        saga.failedStep = stored.failedStep();
+        saga.failureDetail = stored.failureDetail();
+        saga.failedCompensation = stored.failedCompensation();
+        saga.compensationFailureDetail = stored.compensationFailureDetail();
+        saga.updatedAt = stored.updatedAt();
+        return saga;
+    }
+
     public void stepCompleted(String step, Instant now) {
         requireRunningForward();
         if (completedSteps.contains(step)) {
