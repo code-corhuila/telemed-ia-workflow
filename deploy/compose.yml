@@ -1,0 +1,39 @@
+services:
+  workflow-api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+
+    # Only the gateway is published (Anexo G 5.6.1): the workflow is reachable only inside the
+    # platform network, as workflow-api:8080; the gateway routes /api/v1/sagas to it.
+    expose:
+      - "8080"
+
+    environment:
+      PORT: 8080
+
+      # Identity's RSA public key (PEM): every route but /health needs an RS256 token.
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY:?Set JWT_PUBLIC_KEY (identity's public key)}
+
+      # Participants of the onboarding saga, on the platform network.
+      IDENTITY_URL: ${IDENTITY_URL:-http://identity-api:8081}
+      PROFESSIONAL_MANAGEMENT_URL: ${PROFESSIONAL_MANAGEMENT_URL:-http://professional-management-api:8080}
+
+      # The workflow's own service client at identity POST /internal/service-token;
+      # identity's SERVICE_CLIENTS keeps only the bcrypt hash of the secret.
+      WORKFLOW_CLIENT_ID: ${WORKFLOW_CLIENT_ID:-workflow}
+      WORKFLOW_CLIENT_SECRET: ${WORKFLOW_CLIENT_SECRET:?Set WORKFLOW_CLIENT_SECRET (workflow service client in identity)}
+
+      # Saga state (ADR-028): schema workflow of the shared instance of telemed-ia-infra-postgres,
+      # with the domain's own user. The schema is migrated by db/deploy/compose.yml, never here.
+      WORKFLOW_DB_URL: ${WORKFLOW_DB_URL:-jdbc:postgresql://postgres:5432/telemed_ia}
+      WORKFLOW_DB_USER: ${WORKFLOW_DB_USER:-workflow_app}
+      WORKFLOW_DB_PASSWORD: ${WORKFLOW_APP_PASSWORD:?Set WORKFLOW_APP_PASSWORD (workflow_app of infra-postgres)}
+
+    networks:
+      - platform
+
+networks:
+  platform:
+    external: true
+    name: platform
