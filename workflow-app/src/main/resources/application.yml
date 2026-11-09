@@ -19,7 +19,7 @@ workflow:
   jwt:
     public-key: ${JWT_PUBLIC_KEY:}            # identity's RSA PUBLIC KEY PEM; required at startup
   identity:
-    url: ${IDENTITY_URL:http://identity-and-access-api:8081}
+    url: ${IDENTITY_URL:http://identity-api:8081}
   professional-management:
     url: ${PROFESSIONAL_MANAGEMENT_URL:http://professional-management-api:8080}
   service-client:                           # the workflow's own credential at POST /internal/service-token
