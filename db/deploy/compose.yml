@@ -1,0 +1,43 @@
+name: telemed-ia-workflow-db
+
+# =========================================================================
+# Migration executor for the workflow schema (ADR-028).
+#
+# Per Anexo J:
+#   - This folder does NOT define a Postgres container nor a volume.
+#   - The single instance lives in telemed-ia-infra-postgres.
+#   - This executor only applies the workflow migrations to the shared
+#     instance, with its own Liquibase control tables (ADR-026).
+#   - The workflow service never runs migrations.
+#
+# The postgres service is provided by the composition root of
+# telemed-ia-infra-postgres, which `include:`s this file.
+#
+# Run it from the infra repo:
+#   docker compose --env-file env/dev.env --profile tooling \
+#     run --rm workflow-db-migrate
+# =========================================================================
+
+services:
+  workflow-db-migrate:
+    image: liquibase/liquibase:4.31
+    container_name: workflow-db-migrate
+    profiles: [tooling]
+    volumes:
+      - ..:/workspace:ro
+    working_dir: /workspace
+    environment:
+      LIQUIBASE_COMMAND_URL: jdbc:postgresql://postgres:5432/${PG_DATABASE:-telemed_ia}
+      LIQUIBASE_COMMAND_USERNAME: ${WORKFLOW_APP_USER:-workflow_app}
+      LIQUIBASE_COMMAND_PASSWORD: ${WORKFLOW_APP_PASSWORD:?required}
+      LIQUIBASE_COMMAND_CHANGELOG_FILE: changelog/changelog-master.yaml
+      LIQUIBASE_DATABASE_CHANGELOG_TABLE_NAME: databasechangelog_workflow
+      LIQUIBASE_DATABASE_CHANGELOG_LOCK_TABLE_NAME: databasechangeloglock_workflow
+    command: ["--search-path=/workspace", "update"]
+    networks:
+      - platform
+
+networks:
+  platform:
+    external: true
+    name: platform
