@@ -1,0 +1,16 @@
+databaseChangeLog:
+  - changeSet:
+      id: ddl-indexes-001
+      author: telemed
+      labels: "HU-05,ddl,indexes"
+      comment: "Running sagas by last update, for the recovery of WF-006."
+      changes:
+        - sqlFile:
+            path: 001_create_saga_instance_running_index.sql
+            relativeToChangelogFile: true
+            splitStatements: false
+      rollback:
+        - sqlFile:
+            path: ../../05_rollbacks/01_ddl/10_indexes/001_create_saga_instance_running_index.rollback.sql
+            relativeToChangelogFile: true
+            splitStatements: false
