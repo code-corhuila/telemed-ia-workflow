@@ -1,0 +1,15 @@
+# Workflow saga state (ADR-028). Every change is a NEW changeset in its
+# folder; an applied changeset is never edited.
+databaseChangeLog:
+  - include:
+      file: ../01_ddl/01_schemas/changelog.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: ../01_ddl/03_tables/changelog.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: ../01_ddl/10_indexes/changelog.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: ../03_dcl/01_grants/changelog.yaml
+      relativeToChangelogFile: true

@@ -1,0 +1,16 @@
+databaseChangeLog:
+  - changeSet:
+      id: ddl-schemas-001
+      author: telemed
+      labels: "HU-05,ddl,schemas"
+      comment: "workflow schema reserved for the saga state of telemed-ia-workflow."
+      changes:
+        - sqlFile:
+            path: 001_create_schema_workflow.sql
+            relativeToChangelogFile: true
+            splitStatements: false
+      rollback:
+        - sqlFile:
+            path: ../../05_rollbacks/01_ddl/01_schemas/001_create_schema_workflow.rollback.sql
+            relativeToChangelogFile: true
+            splitStatements: false
