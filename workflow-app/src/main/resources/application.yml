@@ -1,6 +1,13 @@
 spring:
   application:
     name: telemed-ia-workflow
+  datasource:                               # saga state, schema workflow (ADR-028); the service never migrates
+    url: ${WORKFLOW_DB_URL:jdbc:postgresql://postgres:5432/telemed_ia}
+    username: ${WORKFLOW_DB_USER:workflow_app}
+    password: ${WORKFLOW_DB_PASSWORD:}      # required at startup; never versioned
+    hikari:
+      maximum-pool-size: ${WORKFLOW_DB_POOL_SIZE:5}
+      connection-timeout: ${WORKFLOW_DB_CONNECT_TIMEOUT:3000}   # ms: a store outage answers quickly
 server:
   port: ${PORT:8080}
   error:

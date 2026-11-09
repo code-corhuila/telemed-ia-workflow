@@ -61,10 +61,11 @@ Configuration comes from environment variables; `.env.example` lists the names, 
 The service does not start without `JWT_PUBLIC_KEY`, the identity service's RSA public key: every
 route but `/health` requires an RS256 access token signed by identity. It does not start without
 `WORKFLOW_CLIENT_SECRET` either: the saga calls identity and professional-management with the
-workflow's own service token, never with the caller's token.
-
-**Temporary:** the sagas are kept in memory, so a restart loses every saga in progress (Anexo E,
-rule 2 is not met yet). The PostgreSQL store, decided in the saga-store ADR, replaces it.
+workflow's own service token, never with the caller's token. Nor without `WORKFLOW_DB_PASSWORD`:
+the state of every saga is stored after each step in `workflow.saga_instance` of the shared
+PostgreSQL (ADR-028), connected as `workflow_app`. The schema lives in [`db/`](db/README.md) and is
+migrated by its own runner, never by the service. `mvn verify` needs Docker for the store tests
+(Testcontainers).
 
 ## Branching
 

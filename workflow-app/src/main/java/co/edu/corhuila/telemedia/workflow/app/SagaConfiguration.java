@@ -1,6 +1,6 @@
 package co.edu.corhuila.telemedia.workflow.app;
 
-import co.edu.corhuila.telemedia.workflow.adapter.out.memory.InMemorySagaStore;
+import co.edu.corhuila.telemedia.workflow.adapter.out.jdbc.JdbcSagaStore;
 import co.edu.corhuila.telemedia.workflow.adapter.out.participants.HttpIdentityAccounts;
 import co.edu.corhuila.telemedia.workflow.adapter.out.participants.HttpProfessionalProfiles;
 import co.edu.corhuila.telemedia.workflow.adapter.out.participants.ParticipantClient;
@@ -14,8 +14,9 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.time.Clock;
 import java.time.Duration;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.UUID;
-import org.slf4j.LoggerFactory;
+import javax.sql.DataSource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -61,12 +62,17 @@ class SagaConfiguration {
                 new ParticipantClient.Settings(url, requestTimeout, attempts, backoff)));
     }
 
-    /** TEMPORARY: replaced by the PostgreSQL store of the saga-store ADR (Anexo E, rule 2). */
+    /**
+     * The saga state in the workflow schema of PostgreSQL (ADR-028), as {@code workflow_app}. Fails at
+     * startup without the password: a saga whose state cannot be stored must not start.
+     */
     @Bean
-    SagaStore sagaStore() {
-        LoggerFactory.getLogger(SagaConfiguration.class)
-                .warn("sagas are kept in memory: a restart loses every saga in progress");
-        return new InMemorySagaStore();
+    SagaStore sagaStore(DataSource dataSource, ObjectMapper json,
+                        @Value("${spring.datasource.password:}") String password) {
+        if (password == null || password.isBlank()) {
+            throw new IllegalStateException("WORKFLOW_DB_PASSWORD is required: the saga state is stored in PostgreSQL");
+        }
+        return new JdbcSagaStore(dataSource, json);
     }
 
     @Bean
