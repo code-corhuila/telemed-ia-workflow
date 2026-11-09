@@ -31,6 +31,8 @@ class WorkflowHttpTest {
     static void jwtPublicKey(DynamicPropertyRegistry registry) {
         registry.add("JWT_PUBLIC_KEY", TestTokens::publicKeyPem);
         registry.add("WORKFLOW_CLIENT_SECRET", () -> "test-secret");
+        // The pool connects on first use; these tests never reach the store.
+        registry.add("WORKFLOW_DB_PASSWORD", () -> "test-only");
     }
 
     @Test

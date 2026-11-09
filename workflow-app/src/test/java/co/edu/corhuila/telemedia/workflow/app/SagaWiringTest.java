@@ -2,7 +2,7 @@ package co.edu.corhuila.telemedia.workflow.app;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import co.edu.corhuila.telemedia.workflow.adapter.out.memory.InMemorySagaStore;
+import co.edu.corhuila.telemedia.workflow.adapter.out.jdbc.JdbcSagaStore;
 import co.edu.corhuila.telemedia.workflow.adapter.out.participants.HttpIdentityAccounts;
 import co.edu.corhuila.telemedia.workflow.adapter.out.participants.HttpProfessionalProfiles;
 import co.edu.corhuila.telemedia.workflow.application.port.in.GetSaga;
@@ -39,6 +39,8 @@ class SagaWiringTest {
     static void settings(DynamicPropertyRegistry registry) {
         registry.add("JWT_PUBLIC_KEY", TestTokens::publicKeyPem);
         registry.add("WORKFLOW_CLIENT_SECRET", () -> "test-secret");
+        // The pool connects on first use; these tests never reach the store.
+        registry.add("WORKFLOW_DB_PASSWORD", () -> "test-only");
     }
 
     @Test
@@ -46,7 +48,7 @@ class SagaWiringTest {
         assertThat(start).isSameAs(get);
         assertThat(identity).isInstanceOf(HttpIdentityAccounts.class);
         assertThat(profiles).isInstanceOf(HttpProfessionalProfiles.class);
-        // Temporary (Anexo E, rule 2 not met yet): replaced by the PostgreSQL store of the saga-store ADR.
-        assertThat(store).isInstanceOf(InMemorySagaStore.class);
+        // ADR-028: the saga state survives a restart in the workflow schema of PostgreSQL.
+        assertThat(store).isInstanceOf(JdbcSagaStore.class);
     }
 }
