@@ -97,6 +97,17 @@ public final class JdbcSagaStore implements SagaStore {
                 .optional();
     }
 
+    @Override
+    public List<SagaInstance> findRunningNotUpdatedSince(Instant since, int limit) {
+        // Served by the partial index ix_saga_instance_running (updated_at WHERE status = 'RUNNING').
+        return jdbc.sql("SELECT " + COLUMNS + " FROM workflow.saga_instance"
+                        + " WHERE status = 'RUNNING' AND updated_at < :since ORDER BY updated_at LIMIT :limit")
+                .param("since", timestamp(since))
+                .param("limit", limit)
+                .query(this::row)
+                .list();
+    }
+
     private Map<String, Object> stateParams(SagaInstance.Snapshot s) {
         Map<String, Object> params = new HashMap<>();
         params.put("status", s.status().name());

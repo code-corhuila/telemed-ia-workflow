@@ -27,6 +27,15 @@ It owns no business data: domain state and rules stay in each domain's `-api`.
 
 The account can only sign in once every step succeeded.
 
+### Recovery after a restart (WF-006)
+
+A saga the service left `RUNNING` is never resumed, only undone, because its password is not
+stored. A sweep runs every `WORKFLOW_RECOVERY_INTERVAL` (default `PT60S`) and takes up to
+`WORKFLOW_RECOVERY_BATCH` sagas (default 20) unchanged for `WORKFLOW_RECOVERY_STALE_AFTER`
+(default `PT5M`). A saga whose three steps were done is marked `COMPLETED`; any other one fails
+at its next step (`interrupted`) and is compensated. Each one logs `saga.recovered`.
+`WORKFLOW_RECOVERY_ENABLED=false` turns the sweep off.
+
 ### Endpoints (WF-004)
 
 | Route | Caller | Answers |
