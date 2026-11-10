@@ -53,7 +53,7 @@ class SagaControllerTest {
     void anAdminStartsTheOnboardingAndGets201WithTheSaga() throws Exception {
         sagas.next = new StartProfessionalOnboarding.Started(completedSaga(), true);
 
-        mvc.perform(start("ADMIN").header("Idempotency-Key", "key-1").content(BODY))
+        mvc.perform(start("ADMIN").header("Idempotency-Key", "saga-key-1").content(BODY))
                 .andExpect(status().isCreated())
                 .andExpect(header().string("Location", "/api/v1/sagas/" + SAGA_ID))
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
@@ -67,7 +67,7 @@ class SagaControllerTest {
                 .andExpect(jsonPath("$.updatedAt").value("2026-11-09T15:00:00Z"))
                 .andExpect(content().string(not(containsString("S3cret-pass!"))));
 
-        assertThat(sagas.keys).containsExactly("key-1");
+        assertThat(sagas.keys).containsExactly("saga-key-1");
         ProfessionalOnboardingCommand command = sagas.commands.get(0);
         assertThat(command.email()).isEqualTo("ana@example.com");
         assertThat(command.password()).isEqualTo("S3cret-pass!");
@@ -78,7 +78,7 @@ class SagaControllerTest {
     void repeatingTheKeyAnswers200WithTheSameSaga() throws Exception {
         sagas.next = new StartProfessionalOnboarding.Started(completedSaga(), false);
 
-        mvc.perform(start("ADMIN").header("Idempotency-Key", "key-1").content(BODY))
+        mvc.perform(start("ADMIN").header("Idempotency-Key", "saga-key-1").content(BODY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(SAGA_ID.toString()));
     }
@@ -87,7 +87,7 @@ class SagaControllerTest {
     void aCompensatedSagaIsStillCreatedAndNamesTheFailedStepWithoutItsDetail() throws Exception {
         sagas.next = new StartProfessionalOnboarding.Started(compensatedSaga(), true);
 
-        mvc.perform(start("ADMIN").header("Idempotency-Key", "key-2").content(BODY))
+        mvc.perform(start("ADMIN").header("Idempotency-Key", "saga-key-2").content(BODY))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("COMPENSATED"))
                 .andExpect(jsonPath("$.failedStep").value("create-profile"))
@@ -112,7 +112,7 @@ class SagaControllerTest {
                 {"fullName":" ","email":"not-an-email","identityDocument":"1075000000",
                  "password":"","licenseNumber":"RM-12345","yearsExperience":-1}""";
 
-        mvc.perform(start("ADMIN").header("Idempotency-Key", "key-3").content(body))
+        mvc.perform(start("ADMIN").header("Idempotency-Key", "saga-key-3").content(body))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"))
                 .andExpect(jsonPath("$.details.length()").value(4))
@@ -126,7 +126,7 @@ class SagaControllerTest {
 
     @Test
     void onlyAnAdminCanStartTheOnboarding() throws Exception {
-        mvc.perform(start("PROFESSIONAL").header("Idempotency-Key", "key-4").content(BODY))
+        mvc.perform(start("PROFESSIONAL").header("Idempotency-Key", "saga-key-4").content(BODY))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error").value("FORBIDDEN"));
 
@@ -137,7 +137,7 @@ class SagaControllerTest {
     void aKeyReusedForAnotherRequestAnswers422() throws Exception {
         sagas.failure = new IdempotencyKeyReusedException();
 
-        mvc.perform(start("ADMIN").header("Idempotency-Key", "key-1").content(BODY))
+        mvc.perform(start("ADMIN").header("Idempotency-Key", "saga-key-1").content(BODY))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.error").value("BUSINESS_RULE_VIOLATION"));
     }
@@ -174,6 +174,27 @@ class SagaControllerTest {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    void anIdempotencyKeyOutsideEightTo128CharactersIsRejected() throws Exception {
+        for (String key : List.of("short-7", "k".repeat(129))) {
+            mvc.perform(start("ADMIN").header("Idempotency-Key", key).content(BODY))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.details[0].field").value("Idempotency-Key"));
+        }
+        assertThat(sagas.commands).isEmpty();
+    }
+
+    @Test
+    void anIdempotencyKeyOfEightOr128CharactersIsAccepted() throws Exception {
+        sagas.next = new StartProfessionalOnboarding.Started(completedSaga(), true);
+
+        for (String key : List.of("eight-ch", "k".repeat(128))) {
+            mvc.perform(start("ADMIN").header("Idempotency-Key", key).content(BODY))
+                    .andExpect(status().isCreated());
+        }
+        assertThat(sagas.keys).containsExactly("eight-ch", "k".repeat(128));
+    }
+
     private static MockHttpServletRequestBuilder start(String role) {
         return post("/api/v1/sagas/professional-onboarding")
                 .with(caller(role))
@@ -188,7 +209,7 @@ class SagaControllerTest {
     }
 
     private static SagaInstance completedSaga() {
-        SagaInstance saga = SagaInstance.start(SAGA_ID, "professional-onboarding", "key-1", "hash", NOW);
+        SagaInstance saga = SagaInstance.start(SAGA_ID, "professional-onboarding", "saga-key-1", "hash", NOW);
         saga.stepCompleted("create-account", NOW);
         saga.put("accountId", ACCOUNT_ID);
         saga.stepCompleted("create-profile", NOW);
@@ -199,7 +220,7 @@ class SagaControllerTest {
     }
 
     private static SagaInstance compensatedSaga() {
-        SagaInstance saga = SagaInstance.start(SAGA_ID, "professional-onboarding", "key-2", "hash", NOW);
+        SagaInstance saga = SagaInstance.start(SAGA_ID, "professional-onboarding", "saga-key-2", "hash", NOW);
         saga.stepCompleted("create-account", NOW);
         saga.put("accountId", ACCOUNT_ID);
         saga.stepFailed("create-profile", "profile service answered 409", NOW);
