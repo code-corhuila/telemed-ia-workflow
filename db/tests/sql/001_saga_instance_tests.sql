@@ -49,7 +49,7 @@ BEGIN
     END IF;
 END $$;
 
--- The Idempotency-Key accepted by the API is at most 255 characters.
+-- The column holds 255 characters, more than the 8 to 128 the API accepts (07-api/guidelines.md).
 DO $$
 DECLARE
     max_length integer;
