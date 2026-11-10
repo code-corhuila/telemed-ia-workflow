@@ -1,0 +1,16 @@
+databaseChangeLog:
+  - changeSet:
+      id: ddl-tables-001
+      author: telemed
+      labels: "HU-05,ddl,tables"
+      comment: "saga_instance: state of one saga run. No request, no password, no FKs to other schemas."
+      changes:
+        - sqlFile:
+            path: 001_create_saga_instance.sql
+            relativeToChangelogFile: true
+            splitStatements: false
+      rollback:
+        - sqlFile:
+            path: ../../05_rollbacks/01_ddl/03_tables/001_create_saga_instance.rollback.sql
+            relativeToChangelogFile: true
+            splitStatements: false
