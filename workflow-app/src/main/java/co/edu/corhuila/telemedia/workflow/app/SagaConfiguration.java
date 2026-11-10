@@ -80,7 +80,7 @@ class SagaConfiguration {
         return UUID::randomUUID;
     }
 
-    /** One bean for both input ports: StartProfessionalOnboarding and GetSaga. */
+    /** One bean for the input ports: StartProfessionalOnboarding, GetSaga and RecoverInterruptedSagas. */
     @Bean
     RunProfessionalOnboardingSaga professionalOnboardingSaga(IdentityAccounts identity, ProfessionalProfiles profiles,
                                                              SagaStore store, IdGenerator ids, Clock clock) {
