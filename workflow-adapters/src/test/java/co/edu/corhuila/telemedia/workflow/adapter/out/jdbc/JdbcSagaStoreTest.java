@@ -158,4 +158,27 @@ class JdbcSagaStoreTest {
         assertThat(store.findById(saga.id()).orElseThrow().createdAt())
                 .isEqualTo(precise.truncatedTo(ChronoUnit.MICROS));
     }
+
+    @Test
+    void findsOnlyTheRunningSagasNotUpdatedSinceAnInstantOldestFirst() {
+        Instant longAgo = T0.minus(30, ChronoUnit.DAYS);
+        SagaInstance oldest = SagaInstance.start(UUID.randomUUID(), "professional-onboarding", "key-stale-1", HASH,
+                longAgo);
+        SagaInstance older = SagaInstance.start(UUID.randomUUID(), "professional-onboarding", "key-stale-2", HASH,
+                longAgo.plusSeconds(60));
+        SagaInstance recent = SagaInstance.start(UUID.randomUUID(), "professional-onboarding", "key-stale-3", HASH,
+                longAgo.plusSeconds(600));
+        SagaInstance finished = SagaInstance.start(UUID.randomUUID(), "professional-onboarding", "key-stale-4", HASH,
+                longAgo);
+        finished.complete(longAgo);
+        for (SagaInstance saga : new SagaInstance[] {older, recent, finished, oldest}) {
+            store.insert(saga);
+        }
+        Instant since = longAgo.plusSeconds(300);
+
+        assertThat(store.findRunningNotUpdatedSince(since, 10))
+                .extracting(SagaInstance::id).containsExactly(oldest.id(), older.id());
+        assertThat(store.findRunningNotUpdatedSince(since, 1))
+                .extracting(SagaInstance::id).containsExactly(oldest.id());
+    }
 }

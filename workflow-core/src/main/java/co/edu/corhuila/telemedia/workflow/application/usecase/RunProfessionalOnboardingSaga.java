@@ -3,6 +3,7 @@ package co.edu.corhuila.telemedia.workflow.application.usecase;
 import co.edu.corhuila.telemedia.workflow.application.port.in.GetSaga;
 import co.edu.corhuila.telemedia.workflow.application.port.in.IdempotencyKeyReusedException;
 import co.edu.corhuila.telemedia.workflow.application.port.in.ProfessionalOnboardingCommand;
+import co.edu.corhuila.telemedia.workflow.application.port.in.RecoverInterruptedSagas;
 import co.edu.corhuila.telemedia.workflow.application.port.in.StartProfessionalOnboarding;
 import co.edu.corhuila.telemedia.workflow.application.port.out.DuplicateSagaException;
 import co.edu.corhuila.telemedia.workflow.application.port.out.IdGenerator;
@@ -16,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
+import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
@@ -36,7 +38,7 @@ import java.util.function.Consumer;
  * ones in reverse order; a failed compensation stops there and leaves the saga FAILED. Repeating the
  * Idempotency-Key with the same request returns the saga it started and runs no step again.
  */
-public class RunProfessionalOnboardingSaga implements StartProfessionalOnboarding, GetSaga {
+public class RunProfessionalOnboardingSaga implements StartProfessionalOnboarding, GetSaga, RecoverInterruptedSagas {
 
     public static final String TYPE = "professional-onboarding";
     static final String ACCOUNT_ID = "accountId";
@@ -78,6 +80,11 @@ public class RunProfessionalOnboardingSaga implements StartProfessionalOnboardin
     @Override
     public SagaInstance get(UUID id) {
         return store.findById(id).orElseThrow(() -> new UnknownSagaException(id));
+    }
+
+    @Override
+    public List<SagaInstance> recover(Duration unchangedFor, int limit) {
+        return List.of();
     }
 
     private static Started replay(SagaInstance previous, String requestHash) {

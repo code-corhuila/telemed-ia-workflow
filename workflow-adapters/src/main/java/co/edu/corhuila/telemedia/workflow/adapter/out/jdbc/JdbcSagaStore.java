@@ -97,6 +97,11 @@ public final class JdbcSagaStore implements SagaStore {
                 .optional();
     }
 
+    @Override
+    public List<SagaInstance> findRunningNotUpdatedSince(Instant since, int limit) {
+        return List.of();
+    }
+
     private Map<String, Object> stateParams(SagaInstance.Snapshot s) {
         Map<String, Object> params = new HashMap<>();
         params.put("status", s.status().name());
