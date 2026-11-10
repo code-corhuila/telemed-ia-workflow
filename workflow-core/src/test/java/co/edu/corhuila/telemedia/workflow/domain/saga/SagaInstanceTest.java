@@ -193,4 +193,21 @@ class SagaInstanceTest {
 
         assertThatThrownBy(() -> SagaInstance.restore(broken)).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void keepsItsTimesToTheMicrosecondAsTheyAreStored() {
+        Instant withNanos = Instant.parse("2026-11-10T14:14:40.319911154Z");
+        Instant micros = Instant.parse("2026-11-10T14:14:40.319911Z");
+        SagaInstance saga = SagaInstance.start(UUID.randomUUID(), "professional-onboarding", "key-2", "hash-2",
+                withNanos);
+
+        assertThat(saga.createdAt()).isEqualTo(micros);
+        assertThat(saga.updatedAt()).isEqualTo(micros);
+
+        saga.stepCompleted("create-account", withNanos.plusNanos(1_000_000));
+        assertThat(saga.updatedAt()).isEqualTo(micros.plusNanos(1_000_000));
+
+        saga.complete(withNanos.plusSeconds(1));
+        assertThat(saga.updatedAt()).isEqualTo(micros.plusSeconds(1));
+    }
 }
