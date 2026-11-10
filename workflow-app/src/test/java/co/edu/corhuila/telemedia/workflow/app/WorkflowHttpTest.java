@@ -97,7 +97,7 @@ class WorkflowHttpTest {
     void theOnboardingRouteIsServedOnlyToAnAdmin() throws Exception {
         mvc.perform(post("/api/v1/sagas/professional-onboarding")
                         .header("Authorization", TestTokens.bearer("prof-1", "PROFESSIONAL"))
-                        .header("Idempotency-Key", "key-1")
+                        .header("Idempotency-Key", "saga-key-1")
                         .contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error").value("FORBIDDEN"));
