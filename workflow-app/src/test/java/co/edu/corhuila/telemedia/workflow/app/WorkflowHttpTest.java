@@ -2,6 +2,7 @@ package co.edu.corhuila.telemedia.workflow.app;
 
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -29,6 +30,7 @@ class WorkflowHttpTest {
     @DynamicPropertySource
     static void jwtPublicKey(DynamicPropertyRegistry registry) {
         registry.add("JWT_PUBLIC_KEY", TestTokens::publicKeyPem);
+        registry.add("WORKFLOW_CLIENT_SECRET", () -> "test-secret");
     }
 
     @Test
@@ -87,5 +89,24 @@ class WorkflowHttpTest {
                         .header("Authorization", "Bearer eyJhbGciOiJub25lIn0.eyJzdWIiOiJ4In0.x"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("authentication is required"));
+    }
+
+    @Test
+    void theOnboardingRouteIsServedOnlyToAnAdmin() throws Exception {
+        mvc.perform(post("/api/v1/sagas/professional-onboarding")
+                        .header("Authorization", TestTokens.bearer("prof-1", "PROFESSIONAL"))
+                        .header("Idempotency-Key", "key-1")
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("FORBIDDEN"));
+    }
+
+    @Test
+    void theOnboardingRouteRequiresAnIdempotencyKey() throws Exception {
+        mvc.perform(post("/api/v1/sagas/professional-onboarding")
+                        .header("Authorization", TestTokens.bearer("admin-1", "ADMIN"))
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.details[0].field").value("Idempotency-Key"));
     }
 }

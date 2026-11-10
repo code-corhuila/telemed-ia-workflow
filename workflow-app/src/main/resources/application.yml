@@ -11,6 +11,19 @@ server:
 workflow:
   jwt:
     public-key: ${JWT_PUBLIC_KEY:}            # identity's RSA PUBLIC KEY PEM; required at startup
+  identity:
+    url: ${IDENTITY_URL:http://identity-and-access-api:8081}
+  professional-management:
+    url: ${PROFESSIONAL_MANAGEMENT_URL:http://professional-management-api:8080}
+  service-client:                           # the workflow's own credential at POST /internal/service-token
+    id: ${WORKFLOW_CLIENT_ID:workflow}
+    secret: ${WORKFLOW_CLIENT_SECRET:}        # required at startup; never versioned
+    refresh-margin: ${WORKFLOW_TOKEN_REFRESH_MARGIN:PT60S}
+  participants:
+    connect-timeout: ${PARTICIPANT_CONNECT_TIMEOUT:PT2S}
+    request-timeout: ${PARTICIPANT_REQUEST_TIMEOUT:PT5S}
+    attempts: ${PARTICIPANT_ATTEMPTS:3}       # a 5xx or an unreachable participant is retried with the same key
+    backoff: ${PARTICIPANT_BACKOFF:PT0.5S}
 logging:
   structured:
     format:

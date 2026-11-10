@@ -17,7 +17,7 @@ business process has to write in more than one domain, this service runs it as a
 
 It owns no business data: domain state and rules stay in each domain's `-api`.
 
-### Planned saga: professional onboarding
+### Saga: professional onboarding
 
 | Step | Participant | Action | Compensation |
 |---|---|---|---|
@@ -26,6 +26,17 @@ It owns no business data: domain state and rules stay in each domain's `-api`.
 | 3 | identity-and-access | activate the account | — (last step) |
 
 The account can only sign in once every step succeeded.
+
+### Endpoints (WF-004)
+
+| Route | Caller | Answers |
+|---|---|---|
+| `POST /api/v1/sagas/professional-onboarding` with `Idempotency-Key` and `{fullName, email, identityDocument, password, licenseNumber, yearsExperience}` | `ADMIN` | `201` + `Location` with the saga; `200` when the key is repeated with the same request; `422` when the key was used for another request; `400` for a missing key or invalid fields; `403` for any other role |
+| `GET /api/v1/sagas/{id}` | `ADMIN` | `200` with the saga; `404` unknown; `400` when the id is not a UUID |
+
+The saga runs inside the request, so the answer carries its final `status` (`COMPLETED`,
+`COMPENSATED` or `FAILED`) and, when a step failed, `failedStep`. A compensated saga is still a
+`201`. The password and the failure detail are never returned.
 
 ## Structure
 
@@ -41,13 +52,19 @@ Requires Java 21 and Maven 3.9.
 
 ```bash
 mvn verify                                  # build and run every test
-JWT_PUBLIC_KEY="$(cat identity-public.pem)" \n  mvn -pl workflow-app -am spring-boot:run  # start on PORT (default 8080)
+JWT_PUBLIC_KEY="$(cat identity-public.pem)" WORKFLOW_CLIENT_SECRET=<your-secret> \
+  mvn -pl workflow-app -am spring-boot:run  # start on PORT (default 8080)
 curl http://localhost:8080/health           # {"status":"UP"}
 ```
 
 Configuration comes from environment variables; `.env.example` lists the names, never the values.
 The service does not start without `JWT_PUBLIC_KEY`, the identity service's RSA public key: every
-route but `/health` requires an RS256 access token signed by identity.
+route but `/health` requires an RS256 access token signed by identity. It does not start without
+`WORKFLOW_CLIENT_SECRET` either: the saga calls identity and professional-management with the
+workflow's own service token, never with the caller's token.
+
+**Temporary:** the sagas are kept in memory, so a restart loses every saga in progress (Anexo E,
+rule 2 is not met yet). The PostgreSQL store, decided in the saga-store ADR, replaces it.
 
 ## Branching
 
