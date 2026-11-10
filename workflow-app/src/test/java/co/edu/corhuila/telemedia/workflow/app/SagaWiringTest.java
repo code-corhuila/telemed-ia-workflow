@@ -41,6 +41,7 @@ class SagaWiringTest {
         registry.add("WORKFLOW_CLIENT_SECRET", () -> "test-secret");
         // The pool connects on first use; these tests never reach the store.
         registry.add("WORKFLOW_DB_PASSWORD", () -> "test-only");
+        registry.add("WORKFLOW_RECOVERY_ENABLED", () -> "false");
     }
 
     @Test

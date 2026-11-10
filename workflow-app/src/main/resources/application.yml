@@ -31,6 +31,12 @@ workflow:
     request-timeout: ${PARTICIPANT_REQUEST_TIMEOUT:PT5S}
     attempts: ${PARTICIPANT_ATTEMPTS:3}       # a 5xx or an unreachable participant is retried with the same key
     backoff: ${PARTICIPANT_BACKOFF:PT0.5S}
+  recovery:                                 # WF-006: undo the sagas a restart left RUNNING
+    enabled: ${WORKFLOW_RECOVERY_ENABLED:true}
+    interval: ${WORKFLOW_RECOVERY_INTERVAL:PT60S}
+    initial-delay: ${WORKFLOW_RECOVERY_INITIAL_DELAY:PT10S}
+    stale-after: ${WORKFLOW_RECOVERY_STALE_AFTER:PT5M}   # longer than the slowest saga (~50 s)
+    batch: ${WORKFLOW_RECOVERY_BATCH:20}
 logging:
   structured:
     format:
