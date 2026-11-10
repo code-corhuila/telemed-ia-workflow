@@ -15,9 +15,11 @@ import co.edu.corhuila.telemedia.workflow.domain.saga.SagaInstance;
 import co.edu.corhuila.telemedia.workflow.domain.saga.SagaStatus;
 import co.edu.corhuila.telemedia.workflow.domain.saga.UnknownSagaException;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -25,6 +27,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 
 class RunProfessionalOnboardingSagaTest {
@@ -33,6 +36,8 @@ class RunProfessionalOnboardingSagaTest {
     private static final UUID ACCOUNT_ID = UUID.fromString("7a1e9c3f-0000-4000-8000-000000000003");
     private static final UUID PROFESSIONAL_ID = UUID.fromString("9cfcfeec-c4b6-4d76-a0b4-f0db602d7caa");
     private static final String PASSWORD = "S3cret-Passw0rd!";
+    private static final Instant LONG_AGO = Instant.parse("2026-11-07T14:50:00Z");
+    private static final Duration FIVE_MINUTES = Duration.ofMinutes(5);
     private static final ProfessionalOnboardingCommand COMMAND = new ProfessionalOnboardingCommand(
             "Laura Gómez", "laura.gomez@example.com", "1075000111", PASSWORD, "MP-12345", 7);
 
@@ -227,6 +232,102 @@ class RunProfessionalOnboardingSagaTest {
                 .isInstanceOf(UnknownSagaException.class);
     }
 
+    @Test
+    void theRecoveryUndoesASagaStoppedAfterTheAccountWasCreated() {
+        SagaInstance stopped = stoppedSaga(saga -> {
+            saga.stepCompleted("create-account", LONG_AGO);
+            saga.put("accountId", ACCOUNT_ID.toString());
+        });
+
+        List<SagaInstance> recovered = saga.recover(FIVE_MINUTES, 20);
+
+        assertThat(recovered).containsExactly(stopped);
+        assertThat(calls).containsExactly("deactivate-account");
+        assertThat(participants.deactivatedAccountId).isEqualTo(ACCOUNT_ID);
+        assertThat(stopped.status()).isEqualTo(SagaStatus.COMPENSATED);
+        assertThat(stopped.failedStep()).isEqualTo("create-profile");
+        assertThat(stopped.failureDetail()).isEqualTo("interrupted");
+        assertThat(store.history).containsExactly(
+                "RUNNING [create-account]",
+                "RUNNING [create-account] undone [create-account]",
+                "COMPENSATED [create-account] undone [create-account]");
+    }
+
+    @Test
+    void theRecoveryOnlyCompletesASagaWhoseThreeStepsWereDone() {
+        SagaInstance stopped = stoppedSaga(saga -> {
+            saga.stepCompleted("create-account", LONG_AGO);
+            saga.stepCompleted("create-profile", LONG_AGO);
+            saga.stepCompleted("activate-account", LONG_AGO);
+        });
+
+        saga.recover(FIVE_MINUTES, 20);
+
+        assertThat(calls).isEmpty();
+        assertThat(stopped.status()).isEqualTo(SagaStatus.COMPLETED);
+        assertThat(store.history).containsExactly("COMPLETED [create-account, create-profile, activate-account]");
+    }
+
+    @Test
+    void theRecoveryGoesOnUndoingWhereAStoppedCompensationLeftOff() {
+        SagaInstance stopped = stoppedSaga(saga -> {
+            saga.stepCompleted("create-account", LONG_AGO);
+            saga.put("accountId", ACCOUNT_ID.toString());
+            saga.stepCompleted("create-profile", LONG_AGO);
+            saga.put("professionalId", PROFESSIONAL_ID.toString());
+            saga.stepFailed("activate-account", "identity refused with 503", LONG_AGO);
+            saga.stepCompensated("create-profile", LONG_AGO);
+        });
+
+        saga.recover(FIVE_MINUTES, 20);
+
+        assertThat(calls).containsExactly("deactivate-account");
+        assertThat(stopped.status()).isEqualTo(SagaStatus.COMPENSATED);
+        assertThat(stopped.failedStep()).isEqualTo("activate-account");
+        assertThat(stopped.failureDetail()).isEqualTo("identity refused with 503");
+    }
+
+    @Test
+    void aSagaStoppedBeforeKeepingTheAccountIdEndsCompensatedWithNothingToUndo() {
+        SagaInstance stopped = stoppedSaga(saga -> { });
+
+        saga.recover(FIVE_MINUTES, 20);
+
+        assertThat(calls).isEmpty();
+        assertThat(stopped.status()).isEqualTo(SagaStatus.COMPENSATED);
+        assertThat(stopped.failedStep()).isEqualTo("create-account");
+    }
+
+    @Test
+    void aCompensationThatFailsDuringTheRecoveryLeavesTheSagaFailed() {
+        participants.failing.add("deactivate-account");
+        SagaInstance stopped = stoppedSaga(saga -> {
+            saga.stepCompleted("create-account", LONG_AGO);
+            saga.put("accountId", ACCOUNT_ID.toString());
+        });
+
+        saga.recover(FIVE_MINUTES, 20);
+
+        assertThat(stopped.status()).isEqualTo(SagaStatus.FAILED);
+        assertThat(stopped.failedCompensation()).isEqualTo("create-account");
+    }
+
+    @Test
+    void theRecoveryAsksOnlyForSagasUnchangedForLongerThanTheThreshold() {
+        saga.recover(FIVE_MINUTES, 20);
+
+        assertThat(store.runningQuery).isEqualTo("2026-11-07T14:55:00Z limit 20");
+    }
+
+    /** A saga a restart left RUNNING ten minutes ago, at the point {@code progress} brings it to. */
+    private SagaInstance stoppedSaga(Consumer<SagaInstance> progress) {
+        SagaInstance stopped = SagaInstance.start(UUID.randomUUID(), RunProfessionalOnboardingSaga.TYPE,
+                "key-" + UUID.randomUUID(), "hash", LONG_AGO);
+        progress.accept(stopped);
+        store.sagas.put(stopped.id(), stopped);
+        return stopped;
+    }
+
     private static ProfessionalOnboardingCommand withPassword(String password) {
         return new ProfessionalOnboardingCommand(COMMAND.fullName(), COMMAND.email(), COMMAND.identityDocument(),
                 password, COMMAND.licenseNumber(), COMMAND.yearsExperience());
@@ -303,6 +404,7 @@ class RunProfessionalOnboardingSagaTest {
         private final List<String> history = new ArrayList<>();
         private final Map<UUID, SagaInstance> sagas = new HashMap<>();
         private SagaInstance twinStoredFirst;
+        private String runningQuery;
 
         @Override
         public void insert(SagaInstance saga) {
@@ -331,6 +433,16 @@ class RunProfessionalOnboardingSagaTest {
         @Override
         public Optional<SagaInstance> findByIdempotencyKey(String idempotencyKey) {
             return sagas.values().stream().filter(saga -> saga.idempotencyKey().equals(idempotencyKey)).findFirst();
+        }
+
+        @Override
+        public List<SagaInstance> findRunningNotUpdatedSince(Instant since, int limit) {
+            runningQuery = since + " limit " + limit;
+            return sagas.values().stream()
+                    .filter(saga -> saga.status() == SagaStatus.RUNNING && saga.updatedAt().isBefore(since))
+                    .sorted(Comparator.comparing(SagaInstance::updatedAt))
+                    .limit(limit)
+                    .toList();
         }
 
         private void record(SagaInstance saga) {
