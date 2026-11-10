@@ -1,6 +1,7 @@
 package co.edu.corhuila.telemedia.workflow.domain.saga;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -38,8 +39,8 @@ public final class SagaInstance {
         this.type = Objects.requireNonNull(type, "type");
         this.idempotencyKey = Objects.requireNonNull(idempotencyKey, "idempotencyKey");
         this.requestHash = Objects.requireNonNull(requestHash, "requestHash");
-        this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
-        this.updatedAt = createdAt;
+        this.createdAt = kept(Objects.requireNonNull(createdAt, "createdAt"));
+        this.updatedAt = this.createdAt;
     }
 
     public static SagaInstance start(UUID id, String type, String idempotencyKey, String requestHash, Instant now) {
@@ -80,7 +81,7 @@ public final class SagaInstance {
         saga.failureDetail = stored.failureDetail();
         saga.failedCompensation = stored.failedCompensation();
         saga.compensationFailureDetail = stored.compensationFailureDetail();
-        saga.updatedAt = stored.updatedAt();
+        saga.updatedAt = kept(stored.updatedAt());
         return saga;
     }
 
@@ -90,13 +91,13 @@ public final class SagaInstance {
             throw new IllegalStateException("Step " + step + " is already completed");
         }
         completedSteps.add(Objects.requireNonNull(step, "step"));
-        updatedAt = now;
+        updatedAt = kept(now);
     }
 
     public void complete(Instant now) {
         requireRunningForward();
         status = SagaStatus.COMPLETED;
-        updatedAt = now;
+        updatedAt = kept(now);
     }
 
     /** The step could not be done: from now on the saga only undoes what it did. */
@@ -104,7 +105,7 @@ public final class SagaInstance {
         requireRunningForward();
         failedStep = Objects.requireNonNull(step, "step");
         failureDetail = detail;
-        updatedAt = now;
+        updatedAt = kept(now);
     }
 
     /** Only the most recent step not yet undone can be undone: compensations run in reverse order. */
@@ -115,7 +116,7 @@ public final class SagaInstance {
             throw new IllegalStateException("Step " + step + " is not the next one to undo");
         }
         compensatedSteps.add(step);
-        updatedAt = now;
+        updatedAt = kept(now);
     }
 
     public void compensated(Instant now) {
@@ -124,7 +125,7 @@ public final class SagaInstance {
             throw new IllegalStateException("Steps still to undo: " + pendingCompensations());
         }
         status = SagaStatus.COMPENSATED;
-        updatedAt = now;
+        updatedAt = kept(now);
     }
 
     public void compensationFailed(String step, String detail, Instant now) {
@@ -132,7 +133,7 @@ public final class SagaInstance {
         failedCompensation = Objects.requireNonNull(step, "step");
         compensationFailureDetail = detail;
         status = SagaStatus.FAILED;
-        updatedAt = now;
+        updatedAt = kept(now);
     }
 
     /** The completed steps not yet undone, most recent first: the order to undo them in. */
@@ -152,6 +153,14 @@ public final class SagaInstance {
 
     public Optional<String> get(String key) {
         return Optional.ofNullable(data.get(key));
+    }
+
+    /**
+     * A saga keeps its times to the microsecond, the precision of its store, so the saga answered
+     * when it runs and the one read back later show the same times.
+     */
+    private static Instant kept(Instant time) {
+        return Objects.requireNonNull(time, "time").truncatedTo(ChronoUnit.MICROS);
     }
 
     private void requireRunningForward() {
