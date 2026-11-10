@@ -1,6 +1,13 @@
 spring:
   application:
     name: telemed-ia-workflow
+  datasource:                               # saga state, schema workflow (ADR-028); the service never migrates
+    url: ${WORKFLOW_DB_URL:jdbc:postgresql://postgres:5432/telemed_ia}
+    username: ${WORKFLOW_DB_USER:workflow_app}
+    password: ${WORKFLOW_DB_PASSWORD:}      # required at startup; never versioned
+    hikari:
+      maximum-pool-size: ${WORKFLOW_DB_POOL_SIZE:5}
+      connection-timeout: ${WORKFLOW_DB_CONNECT_TIMEOUT:3000}   # ms: a store outage answers quickly
 server:
   port: ${PORT:8080}
   error:
@@ -12,7 +19,7 @@ workflow:
   jwt:
     public-key: ${JWT_PUBLIC_KEY:}            # identity's RSA PUBLIC KEY PEM; required at startup
   identity:
-    url: ${IDENTITY_URL:http://identity-and-access-api:8081}
+    url: ${IDENTITY_URL:http://identity-api:8081}
   professional-management:
     url: ${PROFESSIONAL_MANAGEMENT_URL:http://professional-management-api:8080}
   service-client:                           # the workflow's own credential at POST /internal/service-token

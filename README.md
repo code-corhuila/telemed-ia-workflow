@@ -61,10 +61,23 @@ Configuration comes from environment variables; `.env.example` lists the names, 
 The service does not start without `JWT_PUBLIC_KEY`, the identity service's RSA public key: every
 route but `/health` requires an RS256 access token signed by identity. It does not start without
 `WORKFLOW_CLIENT_SECRET` either: the saga calls identity and professional-management with the
-workflow's own service token, never with the caller's token.
+workflow's own service token, never with the caller's token. Nor without `WORKFLOW_DB_PASSWORD`:
+the state of every saga is stored after each step in `workflow.saga_instance` of the shared
+PostgreSQL (ADR-028), connected as `workflow_app`. The schema lives in [`db/`](db/README.md) and is
+migrated by its own runner, never by the service. `mvn verify` needs Docker for the store tests
+(Testcontainers).
 
-**Temporary:** the sagas are kept in memory, so a restart loses every saga in progress (Anexo E,
-rule 2 is not met yet). The PostgreSQL store, decided in the saga-store ADR, replaces it.
+### Run in the platform
+
+`deploy/compose.yml` runs the service as `workflow-api:8080` on the external `platform` network
+(only `expose`, never published: the gateway routes `/api/v1/sagas` to it). It reads the env file of
+`telemed-ia-infra-postgres` (`JWT_PUBLIC_KEY`, `WORKFLOW_APP_PASSWORD`) plus
+`WORKFLOW_CLIENT_SECRET`, whose bcrypt hash must be in identity's `SERVICE_CLIENTS`:
+
+```bash
+# after infra-postgres is up and workflow-db-migrate ran
+docker compose -f deploy/compose.yml --env-file ../telemed-ia-infra-postgres/env/dev.env up -d --build
+```
 
 ## Branching
 
