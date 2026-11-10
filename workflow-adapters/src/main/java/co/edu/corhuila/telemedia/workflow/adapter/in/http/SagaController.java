@@ -28,7 +28,8 @@ public class SagaController {
 
     static final String SAGAS = "/api/v1/sagas";
     private static final String ADMIN = "ADMIN";
-    private static final int MAX_KEY_LENGTH = 255;
+    private static final int MIN_KEY_LENGTH = 8;
+    private static final int MAX_KEY_LENGTH = 128;
     private static final int MAX_YEARS_EXPERIENCE = 70;
     private static final Pattern EMAIL = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
 
@@ -85,8 +86,9 @@ public class SagaController {
 
     private static void validate(String idempotencyKey, OnboardingRequest body) {
         List<ApiError.FieldDetail> details = new ArrayList<>();
-        if (blank(idempotencyKey) || idempotencyKey.length() > MAX_KEY_LENGTH) {
-            details.add(new ApiError.FieldDetail("Idempotency-Key", "is required, at most 255 characters"));
+        if (blank(idempotencyKey) || idempotencyKey.length() < MIN_KEY_LENGTH
+                || idempotencyKey.length() > MAX_KEY_LENGTH) {
+            details.add(new ApiError.FieldDetail("Idempotency-Key", "is required, from 8 to 128 characters"));
         }
         requireText(details, "fullName", body.fullName());
         if (blank(body.email()) || !EMAIL.matcher(body.email().trim()).matches()) {
