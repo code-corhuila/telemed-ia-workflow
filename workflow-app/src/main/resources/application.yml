@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: telemed-ia-workflow
+  datasource:                               # saga state, schema workflow (ADR-028); the service never migrates
+    url: ${WORKFLOW_DB_URL:jdbc:postgresql://postgres:5432/telemed_ia}
+    username: ${WORKFLOW_DB_USER:workflow_app}
+    password: ${WORKFLOW_DB_PASSWORD:}      # required at startup; never versioned
+    hikari:
+      maximum-pool-size: ${WORKFLOW_DB_POOL_SIZE:5}
+      connection-timeout: ${WORKFLOW_DB_CONNECT_TIMEOUT:3000}   # ms: a store outage answers quickly
+server:
+  port: ${PORT:8080}
+  error:
+    # Errors answer with the shared envelope; nothing internal reaches the client.
+    include-message: never
+    include-stacktrace: never
+    include-exception: false
+workflow:
+  jwt:
+    public-key: ${JWT_PUBLIC_KEY:}            # identity's RSA PUBLIC KEY PEM; required at startup
+  identity:
+    url: ${IDENTITY_URL:http://identity-api:8081}
+  professional-management:
+    url: ${PROFESSIONAL_MANAGEMENT_URL:http://professional-management-api:8080}
+  service-client:                           # the workflow's own credential at POST /internal/service-token
+    id: ${WORKFLOW_CLIENT_ID:workflow}
+    secret: ${WORKFLOW_CLIENT_SECRET:}        # required at startup; never versioned
+    refresh-margin: ${WORKFLOW_TOKEN_REFRESH_MARGIN:PT60S}
+  participants:
+    connect-timeout: ${PARTICIPANT_CONNECT_TIMEOUT:PT2S}
+    request-timeout: ${PARTICIPANT_REQUEST_TIMEOUT:PT5S}
+    attempts: ${PARTICIPANT_ATTEMPTS:3}       # a 5xx or an unreachable participant is retried with the same key
+    backoff: ${PARTICIPANT_BACKOFF:PT0.5S}
+  recovery:                                 # WF-006: undo the sagas a restart left RUNNING
+    enabled: ${WORKFLOW_RECOVERY_ENABLED:true}
+    interval: ${WORKFLOW_RECOVERY_INTERVAL:PT60S}
+    initial-delay: ${WORKFLOW_RECOVERY_INITIAL_DELAY:PT10S}
+    stale-after: ${WORKFLOW_RECOVERY_STALE_AFTER:PT5M}   # longer than the slowest saga (~50 s)
+    batch: ${WORKFLOW_RECOVERY_BATCH:20}
+logging:
+  structured:
+    format:
+      console: ecs                          # one JSON object per line
